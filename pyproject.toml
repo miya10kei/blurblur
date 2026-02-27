@@ -1,0 +1,37 @@
+[project]
+name = "blurblur"
+version = "0.1.0"
+description = "駐車場画像のナンバープレート・人物を自動検出しモザイク処理するCLIツール"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.24",
+    "onnxruntime>=1.16",
+    "opencv-python>=4.8",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
