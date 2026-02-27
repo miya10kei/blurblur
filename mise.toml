@@ -1,0 +1,31 @@
+[tasks.setup]
+description = "依存パッケージのインストールとモデルのダウンロード"
+run = ["uv sync", "uv run python scripts/download_models.py"]
+
+[tasks.test]
+description = "テストを実行"
+run = "uv run pytest"
+
+[tasks.lint]
+description = "Lintチェック"
+run = "uv run ruff check ."
+
+[tasks."lint:fix"]
+description = "Lint自動修正"
+run = "uv run ruff check --fix ."
+
+[tasks.format]
+description = "コードフォーマット"
+run = "uv run ruff format ."
+
+[tasks."format:check"]
+description = "フォーマットチェック"
+run = "uv run ruff format --check ."
+
+[tasks.typecheck]
+description = "型チェック"
+run = "uv run mypy src/"
+
+[tasks.check]
+description = "全チェック実行 (lint + format + typecheck + test)"
+depends = ["lint", "format:check", "typecheck", "test"]
