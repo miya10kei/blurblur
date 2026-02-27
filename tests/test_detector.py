@@ -1,37 +1,38 @@
-"""Tests for mosaic_processor module."""
+"""Tests for blurblur.detector module."""
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock, patch
 
-import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from mosaic_processor import Detection, MosaicProcessor, YOLODetector, parse_args
-
-
-class TestDetection:
-    def test_create_detection(self) -> None:
-        d = Detection(x1=10, y1=20, x2=100, y2=200, confidence=0.9, class_id=0)
-        assert d.x1 == 10
-        assert d.y1 == 20
-        assert d.x2 == 100
-        assert d.y2 == 200
-        assert d.confidence == 0.9
-        assert d.class_id == 0
-
-    def test_detection_is_dataclass(self) -> None:
-        from dataclasses import is_dataclass
-
-        assert is_dataclass(Detection)
+from blurblur.detector import YOLODetector
 
 
 def _make_detector(input_size: int = 640) -> YOLODetector:
     """Create a YOLODetector with a mocked ONNX session."""
     with patch("onnxruntime.InferenceSession"):
         return YOLODetector("dummy.onnx", input_size=input_size)
+
+
+def _make_postprocess_output(
+    boxes_xywh: list[list[float]],
+    class_scores: list[list[float]],
+) -> NDArray[np.float32]:
+    """Build a fake YOLO output tensor (1, 4+num_classes, num_boxes).
+
+    boxes_xywh: list of [cx, cy, w, h] in input-size coords (after preprocess)
+    class_scores: list of per-class scores for each box
+    """
+    num_classes = len(class_scores[0]) if class_scores else 1
+    num_boxes = len(boxes_xywh)
+    # shape: (1, 4+num_classes, num_boxes)
+    data = np.zeros((1, 4 + num_classes, num_boxes), dtype=np.float32)
+    for i, (box, scores) in enumerate(zip(boxes_xywh, class_scores, strict=True)):
+        data[0, :4, i] = box
+        data[0, 4:, i] = scores
+    return data
 
 
 class TestYOLODetectorPreprocess:
@@ -92,25 +93,6 @@ class TestYOLODetectorPreprocess:
         pad_top = int(pad_h)
         if pad_top > 0:
             assert abs(blob[0, 0, 0, 0] - expected) < 1e-3
-
-
-def _make_postprocess_output(
-    boxes_xywh: list[list[float]],
-    class_scores: list[list[float]],
-) -> NDArray[np.float32]:
-    """Build a fake YOLO output tensor (1, 4+num_classes, num_boxes).
-
-    boxes_xywh: list of [cx, cy, w, h] in input-size coords (after preprocess)
-    class_scores: list of per-class scores for each box
-    """
-    num_classes = len(class_scores[0]) if class_scores else 1
-    num_boxes = len(boxes_xywh)
-    # shape: (1, 4+num_classes, num_boxes)
-    data = np.zeros((1, 4 + num_classes, num_boxes), dtype=np.float32)
-    for i, (box, scores) in enumerate(zip(boxes_xywh, class_scores, strict=True)):
-        data[0, :4, i] = box
-        data[0, 4:, i] = scores
-    return data
 
 
 class TestYOLODetectorPostprocess:
@@ -244,205 +226,3 @@ class TestYOLODetectorDetect:
         # target class 1 -> should get 1
         detections = detector.detect(img, conf_thresh=0.25, iou_thresh=0.45, target_classes=[1])
         assert len(detections) == 1
-
-
-class TestMosaicProcessorApplyMosaic:
-    def test_mosaic_changes_pixels_in_region(self) -> None:
-        person_det = _make_detector()
-        plate_det = _make_detector()
-        proc = MosaicProcessor(person_det, plate_det, mosaic_ratio=0.05)
-
-        # Create a gradient image so mosaic will definitely change pixels
-        img = np.zeros((200, 200, 3), dtype=np.uint8)
-        for i in range(200):
-            img[i, :, :] = i
-        original = img.copy()
-
-        result = proc._apply_mosaic(img, (50, 50, 150, 150))
-        # Pixels inside bbox should differ
-        region_orig = original[50:150, 50:150]
-        region_result = result[50:150, 50:150]
-        assert not np.array_equal(region_orig, region_result)
-
-    def test_mosaic_does_not_change_outside_region(self) -> None:
-        person_det = _make_detector()
-        plate_det = _make_detector()
-        proc = MosaicProcessor(person_det, plate_det, mosaic_ratio=0.05)
-
-        img = np.arange(200 * 200 * 3, dtype=np.uint8).reshape(200, 200, 3)
-        original = img.copy()
-
-        result = proc._apply_mosaic(img, (50, 50, 150, 150))
-        # Top-left corner (outside bbox) should be unchanged
-        assert np.array_equal(original[:50, :50], result[:50, :50])
-        # Bottom-right corner (outside bbox)
-        assert np.array_equal(original[150:, 150:], result[150:, 150:])
-
-
-class TestMosaicProcessorProcessImage:
-    def test_process_image_with_detections(self) -> None:
-        person_det = MagicMock()
-        plate_det = MagicMock()
-        person_det.detect.return_value = [
-            Detection(x1=10, y1=10, x2=50, y2=50, confidence=0.9, class_id=0),
-        ]
-        plate_det.detect.return_value = [
-            Detection(x1=100, y1=100, x2=150, y2=150, confidence=0.8, class_id=0),
-        ]
-        proc = MosaicProcessor(person_det, plate_det, mosaic_ratio=0.05)
-
-        img = np.zeros((200, 200, 3), dtype=np.uint8)
-        result, person_count, plate_count = proc.process_image(img, conf_thresh=0.25, iou_thresh=0.45)
-        assert person_count == 1
-        assert plate_count == 1
-        assert result.shape == img.shape
-
-    def test_process_image_no_detections(self) -> None:
-        person_det = MagicMock()
-        plate_det = MagicMock()
-        person_det.detect.return_value = []
-        plate_det.detect.return_value = []
-        proc = MosaicProcessor(person_det, plate_det, mosaic_ratio=0.05)
-
-        img = np.zeros((200, 200, 3), dtype=np.uint8)
-        original = img.copy()
-        result, person_count, plate_count = proc.process_image(img, conf_thresh=0.25, iou_thresh=0.45)
-        assert person_count == 0
-        assert plate_count == 0
-        assert np.array_equal(result, original)
-
-
-class TestParseArgs:
-    def test_required_args(self) -> None:
-        args = parse_args(
-            [
-                "--input-dir",
-                "/tmp/in",
-                "--output-dir",
-                "/tmp/out",
-                "--person-model",
-                "person.onnx",
-                "--plate-model",
-                "plate.onnx",
-            ]
-        )
-        assert args.input_dir == "/tmp/in"
-        assert args.output_dir == "/tmp/out"
-        assert args.person_model == "person.onnx"
-        assert args.plate_model == "plate.onnx"
-
-    def test_default_values(self) -> None:
-        args = parse_args(
-            [
-                "--input-dir",
-                "/tmp/in",
-                "--output-dir",
-                "/tmp/out",
-                "--person-model",
-                "person.onnx",
-                "--plate-model",
-                "plate.onnx",
-            ]
-        )
-        assert args.conf_threshold == 0.25
-        assert args.iou_threshold == 0.45
-        assert args.mosaic_ratio == 0.05
-
-    def test_custom_thresholds(self) -> None:
-        args = parse_args(
-            [
-                "--input-dir",
-                "/tmp/in",
-                "--output-dir",
-                "/tmp/out",
-                "--person-model",
-                "person.onnx",
-                "--plate-model",
-                "plate.onnx",
-                "--conf-threshold",
-                "0.5",
-                "--iou-threshold",
-                "0.6",
-                "--mosaic-ratio",
-                "0.1",
-            ]
-        )
-        assert args.conf_threshold == 0.5
-        assert args.iou_threshold == 0.6
-        assert args.mosaic_ratio == 0.1
-
-
-class TestMainIntegration:
-    def test_main_processes_images(self, tmp_path: Any) -> None:
-        input_dir = tmp_path / "input"
-        output_dir = tmp_path / "output"
-        input_dir.mkdir()
-
-        # Create test images
-        for name in ["test1.jpg", "test2.png"]:
-            img = np.zeros((100, 100, 3), dtype=np.uint8)
-            cv2.imwrite(str(input_dir / name), img)
-
-        with (
-            patch("mosaic_processor.YOLODetector"),
-            patch("mosaic_processor.MosaicProcessor") as mock_proc_cls,
-        ):
-            mock_proc = MagicMock()
-            mock_proc.process_image.return_value = (np.zeros((100, 100, 3), dtype=np.uint8), 1, 2)
-            mock_proc_cls.return_value = mock_proc
-
-            from mosaic_processor import main
-
-            main(
-                [
-                    "--input-dir",
-                    str(input_dir),
-                    "--output-dir",
-                    str(output_dir),
-                    "--person-model",
-                    "person.onnx",
-                    "--plate-model",
-                    "plate.onnx",
-                ]
-            )
-
-        assert output_dir.exists()
-        output_files = list(output_dir.iterdir())
-        assert len(output_files) == 2
-
-    def test_main_skips_non_image_files(self, tmp_path: Any) -> None:
-        input_dir = tmp_path / "input"
-        output_dir = tmp_path / "output"
-        input_dir.mkdir()
-
-        # Create a non-image file and an image file
-        (input_dir / "readme.txt").write_text("hello")
-        img = np.zeros((100, 100, 3), dtype=np.uint8)
-        cv2.imwrite(str(input_dir / "test.jpg"), img)
-
-        with (
-            patch("mosaic_processor.YOLODetector"),
-            patch("mosaic_processor.MosaicProcessor") as mock_proc_cls,
-        ):
-            mock_proc = MagicMock()
-            mock_proc.process_image.return_value = (np.zeros((100, 100, 3), dtype=np.uint8), 0, 0)
-            mock_proc_cls.return_value = mock_proc
-
-            from mosaic_processor import main
-
-            main(
-                [
-                    "--input-dir",
-                    str(input_dir),
-                    "--output-dir",
-                    str(output_dir),
-                    "--person-model",
-                    "person.onnx",
-                    "--plate-model",
-                    "plate.onnx",
-                ]
-            )
-
-        output_files = list(output_dir.iterdir())
-        assert len(output_files) == 1
-        assert output_files[0].name == "test.jpg"

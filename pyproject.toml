@@ -9,6 +9,19 @@ dependencies = [
     "opencv-python>=4.8",
 ]
 
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["blurblur"]
+
+[tool.setuptools.package-dir]
+blurblur = "src"
+
+[project.scripts]
+blurblur = "blurblur.cli:main"
+
 [dependency-groups]
 dev = [
     "mypy>=1.8",
@@ -22,6 +35,9 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["blurblur"]
 
 [tool.mypy]
 python_version = "3.11"

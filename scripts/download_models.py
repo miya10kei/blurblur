@@ -23,7 +23,7 @@ def download(url: str, dest: Path) -> None:
 
 
 def main() -> None:
-    models_dir = Path(__file__).parent / "models"
+    models_dir = Path(__file__).resolve().parent.parent / "models"
     models_dir.mkdir(exist_ok=True)
     print(f"モデル保存先: {models_dir}")
 
