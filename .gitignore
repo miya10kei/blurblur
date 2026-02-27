@@ -3,6 +3,4 @@ __pycache__/
 .venv/
 .pytest_cache/
 .mypy_cache/
-models/
-*.onnx
 test_output_low/
