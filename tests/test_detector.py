@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 from numpy.typing import NDArray
 
-from blurblur.detection import Detection
 from blurblur.detector import YOLODetector
 
 

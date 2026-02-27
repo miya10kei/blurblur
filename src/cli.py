@@ -9,9 +9,9 @@ from pathlib import Path
 
 import cv2
 
-from blurblur.detection import IMAGE_EXTENSIONS
-from blurblur.detector import YOLODetector
-from blurblur.mosaic import MosaicProcessor
+from .detection import IMAGE_EXTENSIONS
+from .detector import YOLODetector
+from .mosaic import MosaicProcessor
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -51,9 +51,9 @@ def main(argv: list[str] | None = None) -> None:
             continue
 
         result, person_count, plate_count = processor.process_image(
-            image,
+            image,  # type: ignore[arg-type]
             args.conf_threshold,
-            args.iou_threshold,  # type: ignore[arg-type]
+            args.iou_threshold,
         )
         cv2.imwrite(str(output_dir / img_path.name), result)
 

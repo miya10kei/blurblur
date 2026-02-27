@@ -7,7 +7,7 @@ import numpy as np
 import onnxruntime as ort
 from numpy.typing import NDArray
 
-from blurblur.detection import Detection
+from .detection import Detection
 
 
 class YOLODetector:

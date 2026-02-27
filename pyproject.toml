@@ -10,11 +10,14 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/blurblur"]
+[tool.setuptools]
+packages = ["blurblur"]
+
+[tool.setuptools.package-dir]
+blurblur = "src"
 
 [project.scripts]
 blurblur = "blurblur.cli:main"
@@ -29,17 +32,18 @@ dev = [
 [tool.ruff]
 target-version = "py311"
 line-length = 120
-src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["blurblur"]
 
 [tool.mypy]
 python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
-mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = ["cv2", "cv2.*", "onnxruntime", "onnxruntime.*"]
@@ -47,4 +51,3 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]

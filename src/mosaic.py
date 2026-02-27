@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from blurblur.detector import YOLODetector
+from .detector import YOLODetector
 
 
 class MosaicProcessor:
