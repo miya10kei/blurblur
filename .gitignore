@@ -5,6 +5,4 @@ __pycache__/
 .mypy_cache/
 models/
 *.onnx
-test_images/
-test_output/
 test_output_low/
